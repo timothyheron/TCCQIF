@@ -112,7 +112,7 @@ namespace TCCQIF
             else if (Debit_CreditFlag.Equals("Debit", StringComparison.InvariantCultureIgnoreCase))
                 sb.AppendLine("T-" + cleanAmount);
             else
-                throw new Exception("Unrecognised debig/credit flag : " + Debit_CreditFlag);
+                throw new Exception("Unrecognised debit/credit flag : " + Debit_CreditFlag);
 
             sb.AppendLine("P" + Merchant);
             sb.AppendLine("A" + MerchantCity);
