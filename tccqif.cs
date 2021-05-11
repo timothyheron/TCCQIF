@@ -1,4 +1,5 @@
-﻿using System;
+using Microsoft.VisualBasic.FileIO;
+using System;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -14,14 +15,15 @@ namespace TCCQIF
                 var inputFile = args[0];
 
                 //Tesco download files are in UTF-16 !
-                var lines = File.ReadAllLines(inputFile, Encoding.Unicode);
+                using (var input = new StreamReader(inputFile, Encoding.Unicode))
+                {
+                    var converter = new Converter();
+                    var qif = converter.Convert(input, Path.GetExtension(inputFile));
 
-                var converter = new Converter();
-                var qif = converter.Convert(lines);
-
-                //Qif should be in ASCII
-                var outputFile = Path.ChangeExtension(inputFile, ".qif");
-                File.WriteAllText(outputFile, qif, Encoding.ASCII);
+                    //Qif should be in ASCII
+                    var outputFile = Path.ChangeExtension(inputFile, ".qif");
+                    File.WriteAllText(outputFile, qif, Encoding.ASCII);
+                }
             }
             else
             {
@@ -32,36 +34,49 @@ namespace TCCQIF
 
     class Converter
     {
-        public string Convert(string[] lines)
+        public string Convert(TextReader input, string extension)
         {
             var sb = new StringBuilder();
 
-            if (lines.Length > 1)
+            using (var parser = new TextFieldParser(input))
             {
-                //Write a .QIF header
+                if (extension.Equals(".tsv", StringComparison.InvariantCultureIgnoreCase))
+                    parser.SetDelimiters("\t");
+                else if (extension.Equals(".csv", StringComparison.InvariantCultureIgnoreCase))
+                    parser.SetDelimiters(",");
+                else
+                    throw new Exception("Unrecognised file extension : " + extension);
+
+                parser.TextFieldType = FieldType.Delimited;
+                parser.HasFieldsEnclosedInQuotes = true;
+                parser.TrimWhiteSpace = true;
+
+                //QIF header
                 sb.AppendLine(@"!Type:CCard");
 
-                //Skip the header row
-                for (int i = 1; i < lines.Length; i++)
-                {
-                    if (i > 1)
-                        sb.AppendLine("^");
+                //Skip header
+                parser.ReadLine();
 
-                    var record = lines[i].Split('\t');
+                while (!parser.EndOfData)
+                {
+                    var record = parser.ReadFields();
+
+                    if (record.Length != 10)
+                        throw new Exception("Record " + parser.LineNumber + " doesn't have 10 fields");
 
                     var transaction = new Transaction();
-                    transaction.TransactionDate = record[0].Trim('\"');
-                    transaction.PostingDate = record[1].Trim('\"');
-                    transaction.BillingAmount = record[2].Trim('\"');
-                    transaction.Merchant = record[3].Trim('\"');
-                    transaction.MerchantCity = record[4].Trim('\"');
-                    transaction.MerchantCounty = record[5].Trim('\"');
-                    transaction.MerchantPostalCode = record[6].Trim('\"');
-                    transaction.ReferenceNumber = record[7].Trim('\"');
-                    transaction.Debit_CreditFlag = record[8].Trim('\"');
-                    transaction.SICMCC = record[9].Trim('\"');
-
+                    transaction.TransactionDate = record[0];
+                    transaction.PostingDate = record[1];
+                    transaction.BillingAmount = record[2];
+                    transaction.Merchant = record[3];
+                    transaction.MerchantCity = record[4];
+                    transaction.MerchantCounty = record[5];
+                    transaction.MerchantPostalCode = record[6];
+                    transaction.ReferenceNumber = record[7];
+                    transaction.Debit_CreditFlag = record[8];
+                    transaction.SICMCC = record[9];
                     transaction.Emit(sb);
+                    sb.AppendLine("^");
                 }
             }
 
@@ -89,13 +104,15 @@ namespace TCCQIF
             sb.AppendLine("D" + date.ToString("dd/MM/yyyy"));
 
             //Strip off currency symbols
-            var cleanAmount = BillingAmount.TrimStart(new char[] { ' ','£','$'});
+            var cleanAmount = BillingAmount.TrimStart(new char[] { ' ', '£', '$' });
 
             //Change flag to +/-
-            if (Debit_CreditFlag == "Credit")
+            if (Debit_CreditFlag.Equals("Credit", StringComparison.InvariantCultureIgnoreCase))
                 sb.AppendLine("T" + cleanAmount);
-            else if (Debit_CreditFlag == "Debit")
+            else if (Debit_CreditFlag.Equals("Debit", StringComparison.InvariantCultureIgnoreCase))
                 sb.AppendLine("T-" + cleanAmount);
+            else
+                throw new Exception("Unrecognised debig/credit flag : " + Debit_CreditFlag);
 
             sb.AppendLine("P" + Merchant);
             sb.AppendLine("A" + MerchantCity);
