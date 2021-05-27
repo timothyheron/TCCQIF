@@ -14,8 +14,7 @@ namespace TCCQIF
             {
                 var inputFile = args[0];
 
-                //Tesco download files are in UTF-16 !
-                using (var input = new StreamReader(inputFile, Encoding.Unicode))
+                using (var input = new StreamReader(inputFile, Encoding.GetEncoding(1252)))
                 {
                     var converter = new Converter();
                     var qif = converter.Convert(input, Path.GetExtension(inputFile));
@@ -100,19 +99,11 @@ namespace TCCQIF
         public void Emit(StringBuilder sb)
         {
             //Convert the date format
-            var date = DateTime.ParseExact(TransactionDate, "yyyy-MM-dd", CultureInfo.InvariantCulture);
-            sb.AppendLine("D" + date.ToString("dd/MM/yyyy"));
+            sb.AppendLine("D" + TransactionDate);
 
-            //Strip off currency symbols
-            var cleanAmount = BillingAmount.TrimStart(new char[] { ' ', '£', '$' });
-
-            //Change flag to +/-
-            if (Debit_CreditFlag.Equals("Credit", StringComparison.InvariantCultureIgnoreCase))
-                sb.AppendLine("T" + cleanAmount);
-            else if (Debit_CreditFlag.Equals("Debit", StringComparison.InvariantCultureIgnoreCase))
-                sb.AppendLine("T-" + cleanAmount);
-            else
-                throw new Exception("Unrecognised debit/credit flag : " + Debit_CreditFlag);
+            //Strip off currency symbol
+            var cleanAmount = BillingAmount.Replace("£","");
+            sb.AppendLine("T" + cleanAmount);
 
             sb.AppendLine("P" + Merchant);
             sb.AppendLine("A" + MerchantCity);
