@@ -1,6 +1,6 @@
 # TCCQIF
 
-Takes a UTF16-LE tsv (quote enclosed tab delimited file) and generates a .qif version of it
+Takes a .csv or .tsv and generates a .qif version of it
 
 You need the .Net Framework developer pack installed: https://dotnet.microsoft.com/download/dotnet-framework/thank-you/net48-developer-pack-offline-installer
 
